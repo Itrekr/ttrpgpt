@@ -409,7 +409,7 @@ def fetch_stat_modifiers():
     # Define stat entities and their "performance" ranges
     entities = {
         "INT": ("sensor.int_7_day_average", 0.0, 2.0),
-        "WIS": ("sensor.wis_7_day_average", 0.0, 1.0),
+        "WIS": ("sensor.wis_7_day_average", 0.0, 0.75),
         "STR": ("sensor.str_7_day_average", 0.0, 4.0),
         "CON": ("sensor.con_7_day_average", 0.0, 10000.0),
         "DEX": ("sensor.dex_7_day_average", 90.0, 0.0),  # lower is better
@@ -423,19 +423,18 @@ def fetch_stat_modifiers():
                 value = high + low - value
                 low, high = min(low, high), max(low, high)
 
-            # Scale to stat range 1–20
+            # Clamp
+            value = max(min(value, high), low)
+
+            # Convert to stat
             stat = ((value - low) / (high - low)) * 19 + 1
-            stat = round(stat)
+            stat = int(stat + 0.5)  # round half up
 
-            # D&D modifier
             mod = math.floor((stat - 10) / 2)
-
-            # Cap to [-3, 3]
-            mod = max(min(mod, 3), -3)
-            return mod
-        except:
+            return max(min(mod, 3), -3)
+        except Exception as e:
+            debug(f"[value_to_modifier ERROR] {e}")
             return 0
-
 
     stats = {}
     for stat, (entity_id, low, high) in entities.items():
@@ -475,7 +474,25 @@ def initialize_character(skip_hp=False):
 
     base_stats = fetch_stat_modifiers()
     inventory = load_inventory()
-    bonus_stats = extract_inventory_stat_modifiers(display_inventory(inventory))
+    bonus_stats = extract_inventory_stat_modifiers("\n".join(inventory))
+
+    debug("=== BASE STATS FROM SENSORS ===")
+    for stat, val in base_stats.items():
+        debug(f"Sensor stat {stat}: {val}")
+
+    debug("=== RAW INVENTORY LINES ===")
+    for line in inventory:
+        debug(f"Item: {line}")
+
+    debug("=== PARSED MODIFIERS FROM INVENTORY ===")
+    for stat, val in bonus_stats.items():
+        debug(f"Item bonus {stat}: {val}")
+
+    debug("=== FINAL COMBINED STATS ===")
+    for stat in sorted(set(base_stats) | set(bonus_stats)):
+        b = base_stats.get(stat, 0)
+        mod = bonus_stats.get(stat, 0)
+        debug(f"{stat}: {b} (base) + {mod} (mod) = {b + mod}")
 
     for stat, bonus in bonus_stats.items():
         base_stats[stat] = base_stats.get(stat, 0) + bonus
@@ -894,7 +911,7 @@ def resolve_action(action: str, result: str, damage: int, fatal: bool, check: st
     prompt = (
         "You are DungeonGPT, a Dungeon Master in a grounded low-fantasy OSR world.\n"
         "Narrate only the immediate consequence of the player's action.\n"
-        "- Never invent new tools, allies, magic, or context unless previously introduced.\n"
+        "- Never invent new tools, allies, magic, or context unless previously introduced. Even if something is present in the hidden plot, doesn't mean the player knows about it. \n"
         "- Avoid internal monologue or commentary unless physically observable.\n"
         "- Use grounded logic and visible detail.\n\n"
         f"Hidden plot:\n{hidden_plot}\n\n"
