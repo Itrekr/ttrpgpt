@@ -508,6 +508,11 @@ def get_random_movie():
     try:
         with open("movies.txt", "r", encoding="utf-8") as f:
             movies = [line.strip() for line in f if line.strip()]
+
+        # Skip header line if present
+        if movies and movies[0].lower().startswith("series_title"):
+            movies = movies[1:]
+
         return random.choice(movies)
     except Exception as e:
         debug(f"[MOVIE LOAD ERROR] {e}")
