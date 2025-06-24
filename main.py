@@ -20,6 +20,9 @@ consecutive_danger_failures = 0
 turn_count = 0
 hidden_plot = ""
 win_conditions = []
+story_hook = ""
+hook_reveal_turn = 0
+hook_revealed = False
 
 story_phase = {
     "type": "unknown",
@@ -41,7 +44,7 @@ quest_completed = False
 HOME_ASSISTANT_URL = os.environ.get("HOME_ASSISTANT_URL")
 HOME_ASSISTANT_TOKEN = os.environ.get("HOME_ASSISTANT_TOKEN")
 
-DEBUG = False
+DEBUG = os.environ.get("DEBUG_MODE", "0") in ["1", "true", "True"]
 
 def send_inventory_to_home_assistant(inventory: list[str]):
     try:
@@ -146,6 +149,24 @@ def extract_win_conditions(plot: str) -> list[str]:
     if match:
         return [line.strip("-• ").strip() for line in match.group(1).strip().splitlines() if line.strip()]
     return []
+
+def extract_story_hook(plot: str) -> str:
+    """Return the story hook text from the hidden plot if present."""
+    patterns = [
+        r"\n\s*4\.\s*(?:The\s+story\s+hook[:\-]?)?\s*(.+?)(?=\n\s*\d+\.|$)",
+        r"\[STORY HOOK\](.+?)(?=\n\s*\[|$)",
+        r"Story Hook[:\-]?\s*(.+?)(?=\n{2,}|\n\s*\d+\.|$)",
+        r"Hook[:\-]?\s*(.+?)(?=\n{2,}|\n\s*\d+\.|$)"
+    ]
+    for pattern in patterns:
+        match = re.search(pattern, plot, re.DOTALL | re.IGNORECASE)
+        if match:
+            hook = match.group(1).strip()
+            debug(f"Story hook extracted using pattern: {pattern}")
+            debug(f"Story hook text: {hook}")
+            return hook
+    debug("Story hook not found in hidden plot")
+    return ""
 
 def check_quest_completion(win_conditions: list[str], player_action: str, gpt_response: str, last_scene: str) -> bool:
     prompt = (
@@ -630,6 +651,15 @@ def generate_hidden_plot():
 
     hidden_plot = response.choices[0].message.content.strip()
     win_conditions = extract_win_conditions(hidden_plot)
+    global story_hook, hook_reveal_turn, hook_revealed
+    story_hook = extract_story_hook(hidden_plot)
+    hook_reveal_turn = random.randint(2, 4)
+    hook_revealed = False
+    debug(f"Hook reveal turn: {hook_reveal_turn}")
+    if story_hook:
+        debug("Story hook successfully parsed")
+    else:
+        debug("No story hook extracted")
     return hidden_plot
 
 def start_story(hidden_plot: str, inventory: str, hp: int):
@@ -643,7 +673,7 @@ def start_story(hidden_plot: str, inventory: str, hp: int):
         "You may include basic facts needed for the player to understand the conflict and world. Avoid full lore dumps, but it's okay to explain what the player sees, hears, or remembers if it helps frame the situation. \n"
         "If the player resolves the central conflict, you may conclude the story and include the tag [QUEST COMPLETED]. This ends the game and makes them win.\n"
         "Never suggest what the player should do next. Only describe the results of their previous action.\n"
-        "Describe the opening scene of the story, provide the player with any relevant background information they need to get going. Use the story hook if fitting."
+        "Describe the opening scene of the story and provide relevant background information, but do NOT reveal the story hook yet."
     )
     messages.append({"role": "system", "content": system_intro})
     return chat()
@@ -950,6 +980,16 @@ def resolve_action(action: str, result: str, damage: int, fatal: bool, check: st
     else:
         prompt += "\nNo new or ongoing dangers.\n"
 
+    # Inject the delayed story hook on the predetermined turn
+    global hook_reveal_turn, hook_revealed, story_hook
+    if not hook_revealed and turn_count >= hook_reveal_turn and story_hook:
+        debug("Injecting delayed story hook")
+        hook_revealed = True
+        prompt += (
+            "\nAfter describing the action's outcome, naturally introduce the following inciting incident to draw the player into the main conflict.\n\n"
+            f"[INCITING INCIDENT]\n{story_hook}\n[/INCITING INCIDENT]\n"
+        )
+
     # Add damage, fatality, or story beat hooks
     if damage > 0:
         percent = (damage / max(player_hp, 1)) * 100
@@ -1075,6 +1115,9 @@ def main():
     global quest_completed
 
     quest_completed = False  # Reset flag each game
+
+    if DEBUG:
+        debug("DEBUG mode active")
 
     hp_from_sensor = get_current_hp()
     if hp_from_sensor <= 0:
