@@ -144,6 +144,35 @@ def update_quest_history_long(new_summary: str):
     except Exception as e:
         debug(f"[UPDATE QUEST ERROR] {e}")
 
+def get_random_location() -> str:
+    """Return a random location from locations.txt in lowercase."""
+    try:
+        with open("locations.txt", "r", encoding="utf-8") as f:
+            locations = [line.strip() for line in f if line.strip()]
+
+        if locations and locations[0].lower().startswith("location"):
+            locations = locations[1:]
+
+        choice = random.choice(locations).lower()
+        debug(f"Location chosen: {choice}")
+        return choice
+    except Exception as e:
+        debug(f"[LOCATION LOAD ERROR] {e}")
+        fallback = "a dark forest"
+        debug(f"Falling back to default location: {fallback}")
+        return fallback
+
+
+def location_hint_if_first_adventure(previous_quests: list[str]) -> str:
+    """Return a line suggesting a location if there are no previous quests."""
+    if previous_quests:
+        debug("Previous quests found — no location hint needed")
+        return ""
+
+    choice = get_random_location()
+    debug(f"Location hint inserted: {choice}")
+    return f"The adventure should take place in {choice}.\n\n"
+
 def extract_win_conditions(plot: str) -> list[str]:
     match = re.search(r"\[WIN CONDITIONS\](.+?)(?:\n\s*\n|$)", plot, re.DOTALL | re.IGNORECASE)
     if match:
@@ -615,6 +644,7 @@ def generate_hidden_plot():
         )
     else:
         prompt += "This is the player’s first adventure.\n\n"
+        prompt += location_hint_if_first_adventure(previous_quests)
 
     # Continue with the structure/theme/movie setup
     prompt += (
