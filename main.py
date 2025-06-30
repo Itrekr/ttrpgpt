@@ -705,7 +705,7 @@ def start_story(hidden_plot: str, inventory: str, hp: int):
         "You may include basic facts needed for the player to understand the conflict and world. Avoid full lore dumps, but it's okay to explain what the player sees, hears, or remembers if it helps frame the situation. \n"
         "If the player resolves the central conflict, you may conclude the story and include the tag [QUEST COMPLETED]. This ends the game and makes them win.\n"
         "Never suggest what the player should do next. Only describe the results of their previous action.\n"
-        "Describe the opening scene of the story and provide relevant background information, but do NOT reveal the story hook yet."
+        "Describe the opening scene of the story and provide relevant background information the player needs to understand the main plot, but do NOT reveal anything directly part of the story hook yet. The first opening scene is purely for world building and setting the scene."
     )
     messages.append({"role": "system", "content": system_intro})
     return chat()
