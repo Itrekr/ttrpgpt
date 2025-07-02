@@ -682,7 +682,7 @@ def generate_hidden_plot():
         f"Your response must be structured in the following way:\n"
         f"1. The summary of the movie {movie}, clearly stated as inspiration\n"
         f"2. A short explanation of how that story can be adapted to follow the '{structure}' format and what makes it interesting\n"
-        f"3. A first draft that merges the movie inspiration with the quest structure into a coherent overarching plot\n"
+        f"3. A first draft that merges the movie inspiration with the quest structure into a coherent overarching plot. The plot must contain the full story and must be narratively complete.\n"
         f"4. Three interesting, interactive locations relevant to the plot\n"
         f"5. Ten secrets, rumors, or discoveries that could shift the story if uncovered\n"
         f"6. Five memorable NPCs with motivations\n"
