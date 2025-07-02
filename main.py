@@ -197,6 +197,28 @@ def extract_story_hook(plot: str) -> str:
     debug("Story hook not found in hidden plot")
     return ""
 
+def generate_story_hook_from_plot(plot: str, context: str) -> str:
+    """Generate a short inciting incident for the given plot using recent context."""
+    prompt = (
+        "You are DungeonGPT. Using the plot outline and the recent events below, "
+        "craft a single paragraph that introduces an inciting incident for the player. "
+        "The hook should reference what has happened so far, clearly establish the main conflict, "
+        "and motivate the player to act. Do not mention these instructions or the hidden plot.\n\n"
+        f"[PLOT]\n{plot}\n[/PLOT]\n\n"
+        f"[RECENT EVENTS]\n{context}\n[/RECENT EVENTS]"
+    )
+
+    response = client.chat.completions.create(
+        model="gpt-4.1",
+        messages=[{"role": "user", "content": prompt}],
+        temperature=0.9,
+        max_tokens=300,
+    )
+
+    hook = response.choices[0].message.content.strip()
+    debug(f"Generated story hook: {hook}")
+    return hook
+
 def check_quest_completion(win_conditions: list[str], player_action: str, gpt_response: str, last_scene: str) -> bool:
     prompt = (
         "You are DungeonGPT. Based on the list of win conditions, the player's most recent action, and the resulting story text, "
@@ -654,20 +676,19 @@ def generate_hidden_plot():
         f"structured as a '{structure}' that gives the player a clear and actionable objective to pursue. "
         f"Use inspiration from the movie '{movie}' to ground the story in theme, tone, or structure. "
         f"Reimagine its core ideas into a grounded low-fantasy '{structure}' story in your own setting, not a retelling. "
-        f"Create a unique narrative with the same emotional or thematic weight, not the same characters or plot.\n"
-        f"Then develop a compelling story hook that immerses the player and gives them a reason to care. "
+        f"Create a unique narrative with the same emotional or thematic weight, not the same characters or plot. "
+        f"Consider how the player might eventually become involved, but do not include the actual story hook yet.\n"
         f"Avoid cliché introductions like dying strangers handing over letters or begging for help. Be original.\n\n"
         f"Your response must be structured in the following way:\n"
         f"1. The summary of the movie {movie}, clearly stated as inspiration\n"
         f"2. A short explanation of how that story can be adapted to follow the '{structure}' format and what makes it interesting\n"
         f"3. A first draft that merges the movie inspiration with the quest structure into a coherent overarching plot\n"
-        f"4. The story hook, that which gets the player involved and nudges them towards their quest. It should be made clear what the central conflict is during the story hook, so the player knows what they have to do to complete the quest.\n"
-        f"5. Three interesting, interactive locations relevant to the plot\n"
-        f"6. Ten secrets, rumors, or discoveries that could shift the story if uncovered\n"
-        f"7. Five memorable NPCs with motivations\n"
-        f"8. Six unique monsters, enemies, or calamities that escalate the plot or challenge the player. Make sure you come up with a potential threat for each of the 6 stats (STR, INT, WIS, DEX, CHA, CON)\n"
-        f"9. The central conflict, clearly stated with at least three distinct, actionable ways the player could resolve it.\n"
-        f"10. [WIN CONDITIONS] Provide 3 bullet points that explicitly define what actions or events count as completing the full quest. These must be specific, observable, and checkable by the DM. "
+        f"4. Three interesting, interactive locations relevant to the plot\n"
+        f"5. Ten secrets, rumors, or discoveries that could shift the story if uncovered\n"
+        f"6. Five memorable NPCs with motivations\n"
+        f"7. Six unique monsters, enemies, or calamities that escalate the plot or challenge the player. Make sure you come up with a potential threat for each of the 6 stats (STR, INT, WIS, DEX, CHA, CON)\n"
+        f"8. The central conflict, clearly stated with at least three distinct, actionable ways the player could resolve it.\n"
+        f"9. [WIN CONDITIONS] Provide 3 bullet points that explicitly define what actions or events count as completing the full quest. These must be specific, observable, and checkable by the DM. "
         f"Only include this list under the header [WIN CONDITIONS].\n\n"
         f"Important: Be original. Avoid lazy tropes. Use them only if reimagined in surprising, grounded, or thematic ways."
     )
@@ -684,14 +705,11 @@ def generate_hidden_plot():
     hidden_plot = response.choices[0].message.content.strip()
     win_conditions = extract_win_conditions(hidden_plot)
     global story_hook, hook_reveal_turn, hook_revealed
-    story_hook = extract_story_hook(hidden_plot)
+    story_hook = ""  # generated later when needed
     hook_reveal_turn = random.randint(2, 4)
     hook_revealed = False
     debug(f"Hook reveal turn: {hook_reveal_turn}")
-    if story_hook:
-        debug("Story hook successfully parsed")
-    else:
-        debug("No story hook extracted")
+    debug("Story hook generation deferred")
     return hidden_plot
 
 def start_story(hidden_plot: str, inventory: str, hp: int):
@@ -936,14 +954,13 @@ def find_cursed_items_affecting_stat(inventory, stat):
     ]
 
 def resolve_action(action: str, result: str, damage: int, fatal: bool, check: str, inventory: list[str], destroyed_item: str = None) -> tuple[str, list[str]]:
-    global active_danger, danger_ignore_count, player_hp, turn_count, story_phase, quest_completed
+    global active_danger, danger_ignore_count, player_hp, turn_count, story_phase, quest_completed, hidden_plot
 
     debug(f"🔎 Entering resolve_action — danger_triggered_this_turn = {danger_triggered_this_turn}")  # ✅ new
 
     newly_introduced_danger = False
     new_danger_text = None
 
-    hidden_plot = messages[0]["content"]
     last_scene = next((m["content"] for m in reversed(messages) if m["role"] == "assistant"), "")
 
     # --- Generate a new danger if flagged ---
@@ -1014,7 +1031,10 @@ def resolve_action(action: str, result: str, damage: int, fatal: bool, check: st
 
     # Inject the delayed story hook on the predetermined turn
     global hook_reveal_turn, hook_revealed, story_hook
-    if not hook_revealed and turn_count >= hook_reveal_turn and story_hook:
+    if not hook_revealed and turn_count >= hook_reveal_turn:
+        if not story_hook:
+            recent_context = summarize_adventure(messages[-10:]) if messages else ""
+            story_hook = generate_story_hook_from_plot(hidden_plot, recent_context)
         debug("Injecting delayed story hook")
         hook_revealed = True
         prompt += (
