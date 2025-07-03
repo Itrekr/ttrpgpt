@@ -198,12 +198,12 @@ def extract_story_hook(plot: str) -> str:
     return ""
 
 def generate_story_hook_from_plot(plot: str, context: str) -> str:
-    """Generate a short inciting incident for the given plot using recent context."""
+    """Generate a concise inciting incident informed by hidden plot and recent context."""
     prompt = (
-        "You are DungeonGPT. Using the plot outline and the recent events below, "
-        "craft a single paragraph that introduces an inciting incident for the player. "
-        "The hook should reference what has happened so far, clearly establish the main conflict, "
-        "and motivate the player to act. Do not mention these instructions or the hidden plot.\n\n"
+        "You are DungeonGPT. The player is unaware of the hidden plot and only knows the recent events. "
+        "Using the plot outline as secret guidance and the events below as the player's knowledge, "
+        "write one brief paragraph (around 80 words) that draws the player into the central conflict. "
+        "Reference only what has already happened from the player's perspective and do not reveal the plot itself.\n\n"
         f"[PLOT]\n{plot}\n[/PLOT]\n\n"
         f"[RECENT EVENTS]\n{context}\n[/RECENT EVENTS]"
     )
@@ -212,12 +212,13 @@ def generate_story_hook_from_plot(plot: str, context: str) -> str:
         model="gpt-4.1",
         messages=[{"role": "user", "content": prompt}],
         temperature=0.9,
-        max_tokens=300,
+        max_tokens=200,
     )
 
     hook = response.choices[0].message.content.strip()
-    debug(f"Generated story hook: {hook}")
-    return hook
+    first_para = hook.split("\n\n", 1)[0].strip()
+    debug(f"Generated story hook: {first_para}")
+    return first_para
 
 def check_quest_completion(win_conditions: list[str], player_action: str, gpt_response: str, last_scene: str) -> bool:
     prompt = (
@@ -706,7 +707,7 @@ def generate_hidden_plot():
     win_conditions = extract_win_conditions(hidden_plot)
     global story_hook, hook_reveal_turn, hook_revealed
     story_hook = ""  # generated later when needed
-    hook_reveal_turn = random.randint(2, 4)
+    hook_reveal_turn = random.randint(1, 3)
     hook_revealed = False
     debug(f"Hook reveal turn: {hook_reveal_turn}")
     debug("Story hook generation deferred")
@@ -1031,7 +1032,11 @@ def resolve_action(action: str, result: str, damage: int, fatal: bool, check: st
 
     # Inject the delayed story hook on the predetermined turn
     global hook_reveal_turn, hook_revealed, story_hook
-    if not hook_revealed and turn_count >= hook_reveal_turn:
+    if (
+        not hook_revealed
+        and turn_count >= hook_reveal_turn
+        and not (active_danger.get("text") and not active_danger.get("resolved"))
+    ):
         if not story_hook:
             recent_context = summarize_adventure(messages[-10:]) if messages else ""
             story_hook = generate_story_hook_from_plot(hidden_plot, recent_context)
