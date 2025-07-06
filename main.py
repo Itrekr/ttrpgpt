@@ -171,7 +171,7 @@ def location_hint_if_first_adventure(previous_quests: list[str]) -> str:
 
     choice = get_random_location()
     debug(f"Location hint inserted: {choice}")
-    return f"The adventure should take place in {choice}.\n\n"
+    return f"The adventure should take place in {choice}. (If no settlement or village is mentioned, there shouldn't be one nearby).\n\n"
 
 def extract_win_conditions(plot: str) -> list[str]:
     match = re.search(r"\[WIN CONDITIONS\](.+?)(?:\n\s*\n|$)", plot, re.DOTALL | re.IGNORECASE)
@@ -1043,7 +1043,7 @@ def resolve_action(action: str, result: str, damage: int, fatal: bool, check: st
         debug("Injecting delayed story hook")
         hook_revealed = True
         prompt += (
-            "\nAfter describing the action's outcome, naturally introduce the following inciting incident to draw the player into the main conflict.\n\n"
+            "\nAfter describing the action's outcome, naturally introduce the following inciting incident to draw the player into the main conflict (do not include the tags and make it work narratively):\n\n"
             f"[INCITING INCIDENT]\n{story_hook}\n[/INCITING INCIDENT]\n"
         )
 
