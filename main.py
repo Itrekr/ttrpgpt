@@ -338,6 +338,7 @@ def update_inventory_from_narration(narration_text, inventory):
                 "- ADD an item only if it's clearly newly gained and not already in inventory. Be thorough and make sure partial names are not overlooked as separate items.\n"
                 "- If the item is already present (by name), DO NOT add it again, even with a different description.\n"
                 "- If an item is lost, destroyed, or discarded in the story, REMOVE it by its exact name. Make sure it's the EXACT item, not all items that sound similar to it.\n"
+                "- Scrolls can be used multiple times unless they misfire, potions can only be used once.\n"
                 "- Only ADD items if explicitly picked up or directly given to the player.\n"
                 "- If an item is added that was previously in the inventory: make sure the name remains EXACTLY the same.\n"
                 "- Output your answer in plain text, not Python. No backticks, no code formatting.\n"
@@ -662,8 +663,8 @@ def generate_hidden_plot():
         prompt += (
             "Here is a summary of past adventures the player has survived:\n"
             + "\n".join(f"- {q}" for q in previous_quests[-5:]) + "\n\n"
-            "Use one or more of these past quests as subtle worldbuilding inspiration: perhaps an NPC knows of their deeds, "
-            "an old consequence now manifests, or a threat has evolved since. Do not continue the exact same story, but allow continuity or echoes.\n\n"
+            "Use these past quests as worldbuilding and story inspiration: try to naturally continue the story and build upon it, "
+            "maybe old consequences now manifest, maybe an old threat has evolved since or maybe characters from previous adventures return and drive the story forward. Do make sure the new adventure is unique and refreshingly interesting.\n\n"
         )
     else:
         prompt += "This is the player’s first adventure.\n\n"
