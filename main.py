@@ -1220,7 +1220,7 @@ def main():
 
     while True:
         turn_count += 1
-        action = input(f"\n[HP: {player_hp}] [Action]> ").strip()
+        action = input("\nAction> ").strip()
         if action.lower() in ["quit", "exit"]:
             console.print("\n[bold red]Game session ended.[/bold red]\n")
             break
