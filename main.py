@@ -715,6 +715,7 @@ def generate_hidden_plot():
     return hidden_plot
 
 def start_story(hidden_plot: str, inventory: str, hp: int):
+    previous_quests = get_previous_quests_long()
     system_intro = (
         "You are DungeonGPT, a TTRPG Dungeon Master in a grounded low-fantasy world. "
         "Below is the hidden story setup. The player knows nothing about this, but you must remember it and weave its structure into the game. Any trivial information that's required to understand the plot can be freely given, but do so gradually. Don't overload the player:\n\n"
@@ -725,8 +726,26 @@ def start_story(hidden_plot: str, inventory: str, hp: int):
         "You may include basic facts needed for the player to understand the conflict and world. Avoid full lore dumps, but it's okay to explain what the player sees, hears, or remembers if it helps frame the situation. \n"
         "If the player resolves the central conflict, you may conclude the story and include the tag [QUEST COMPLETED]. This ends the game and makes them win.\n"
         "Never suggest what the player should do next. Only describe the results of their previous action.\n"
-        "Describe the opening scene of the story and provide relevant background information the player needs to understand the main plot, but do NOT reveal anything directly part of the story hook yet. The first opening scene is purely for world building and setting the scene."
     )
+
+    opening_scene_prompt = (
+        "Describe the opening scene and overall vibe of the area without revealing the hidden plot."
+    )
+
+    if previous_quests:
+        opening_scene_prompt += (
+            " Briefly explain what occurred after the last adventure ended and how the player came to this new place."
+        )
+    else:
+        opening_scene_prompt += (
+            " Provide any minimal background needed to understand the situation."
+        )
+
+    opening_scene_prompt += (
+        " Do NOT reveal anything directly related to the story hook. The first opening scene is purely for world building and setting the scene."
+    )
+
+    system_intro += opening_scene_prompt
     messages.append({"role": "system", "content": system_intro})
     return chat()
 
