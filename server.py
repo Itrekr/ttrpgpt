@@ -1,0 +1,76 @@
+from flask import Flask, request, jsonify, send_from_directory
+import subprocess
+import threading
+import queue
+import time
+import os
+import main
+
+app = Flask(__name__, static_folder='static', static_url_path='')
+
+game_proc = None
+output_queue = queue.Queue()
+
+def start_game():
+    global game_proc
+    if game_proc is not None:
+        return
+    game_proc = subprocess.Popen(
+        ['python', 'main.py'],
+        stdin=subprocess.PIPE,
+        stdout=subprocess.PIPE,
+        stderr=subprocess.STDOUT,
+        text=True,
+        bufsize=1
+    )
+    threading.Thread(target=_reader, daemon=True).start()
+
+def _reader():
+    for line in game_proc.stdout:
+        output_queue.put(line)
+
+def _get_output():
+    lines = []
+    while not output_queue.empty():
+        lines.append(output_queue.get())
+    return ''.join(lines)
+
+@app.route('/api/start')
+def api_start():
+    start_game()
+    time.sleep(1)
+    intro = _get_output()
+    status = _status()
+    return jsonify({'intro': intro, **status})
+
+@app.route('/api/command', methods=['POST'])
+def api_command():
+    cmd = request.json.get('command', '')
+    if game_proc is None:
+        return jsonify({'output': 'Game not running.'})
+    game_proc.stdin.write(cmd + '\n')
+    game_proc.stdin.flush()
+    time.sleep(1)
+    output = _get_output()
+    status = _status()
+    return jsonify({'output': output, **status})
+
+@app.route('/api/status')
+def api_status():
+    return jsonify(_status())
+
+def _status():
+    hp = main.get_current_hp()
+    inventory = main.load_inventory()
+    return {'hp': {'current': hp, 'max': 10}, 'inventory': inventory}
+
+@app.route('/')
+def index():
+    return send_from_directory(app.static_folder, 'index.html')
+
+@app.route('/<path:path>')
+def static_files(path):
+    return send_from_directory(app.static_folder, path)
+
+if __name__ == '__main__':
+    app.run(debug=True)
