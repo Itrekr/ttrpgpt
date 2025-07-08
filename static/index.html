@@ -37,7 +37,7 @@ body {
 }
 #terminal {
     flex: 1;
-    padding: 10px;
+    padding: 10px 10px 10px 15px;
     overflow-y: auto;
     white-space: pre-wrap;
     font-size: 1em;
@@ -124,7 +124,7 @@ fetch('/api/history').then(r=>r.json()).then(d=>{
     append(d.history);
     refreshStatus();
     if(!d.history){
-        fetch('/api/start').then(r=>r.json()).then(x=>append(x.intro));
+        fetch('/api/start').then(r=>r.json()).then(x=>{append(x.intro);refreshStatus();});
     }
 });
 
