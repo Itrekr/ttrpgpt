@@ -6,6 +6,9 @@ import time
 import os
 import main
 
+output_history = []
+history_lock = threading.Lock()
+
 app = Flask(__name__, static_folder='static', static_url_path='')
 
 game_proc = None
@@ -28,6 +31,8 @@ def start_game():
 def _reader():
     for line in game_proc.stdout:
         output_queue.put(line)
+        with history_lock:
+            output_history.append(line)
 
 def _get_output():
     lines = []
@@ -54,6 +59,16 @@ def api_command():
     output = _get_output()
     status = _status()
     return jsonify({'output': output, **status})
+
+@app.route('/api/poll')
+def api_poll():
+    return jsonify({'output': _get_output()})
+
+@app.route('/api/history')
+def api_history():
+    with history_lock:
+        history_text = ''.join(output_history)
+    return jsonify({'history': history_text, **_status()})
 
 @app.route('/api/status')
 def api_status():
