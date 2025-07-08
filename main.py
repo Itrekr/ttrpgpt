@@ -15,6 +15,7 @@ console = Console()
 messages = []
 player_stats = {}
 player_hp = 0
+INVENTORY_PREFIX = "@@INV@@"
 danger_ignore_count = 0
 consecutive_danger_failures = 0
 turn_count = 0
@@ -1213,6 +1214,7 @@ def main():
     console.print("[bold magenta]\n🎲 Generating adventure...[/bold magenta]\n")
 
     inventory = load_inventory()
+    print(INVENTORY_PREFIX + " " + "|".join(inventory), flush=True)
     hidden_plot = generate_hidden_plot()
     debug("Hidden Plot:\n" + hidden_plot)
     intro = start_story(hidden_plot, inventory, player_hp)
@@ -1318,6 +1320,7 @@ def main():
         debug(f"🔎 danger_triggered_this_turn before resolve: {danger_triggered_this_turn}")
         outcome, inventory = resolve_action(action, result, damage, fatal, check, inventory, destroyed_item)
         console.print(Markdown("\n" + outcome.strip() + "\n"))
+        print(INVENTORY_PREFIX + " " + "|".join(inventory), flush=True)
 
         if quest_completed:
             console.print("\n[bold green]Quest complete![/bold green]\n")

@@ -8,6 +8,7 @@ import main
 
 output_history = []
 history_lock = threading.Lock()
+current_inventory = []
 
 app = Flask(__name__, static_folder='static', static_url_path='')
 
@@ -15,9 +16,10 @@ game_proc = None
 output_queue = queue.Queue()
 
 def start_game():
-    global game_proc
+    global game_proc, current_inventory
     if game_proc is not None:
         return
+    current_inventory = main.load_inventory()
     game_proc = subprocess.Popen(
         ['python', 'main.py'],
         stdin=subprocess.PIPE,
@@ -29,7 +31,14 @@ def start_game():
     threading.Thread(target=_reader, daemon=True).start()
 
 def _reader():
+    global current_inventory
     for line in game_proc.stdout:
+        if line.startswith(main.INVENTORY_PREFIX):
+            data = line[len(main.INVENTORY_PREFIX):].strip()
+            items = data.split('|') if data else []
+            with history_lock:
+                current_inventory = [i for i in items if i]
+            continue
         output_queue.put(line)
         with history_lock:
             output_history.append(line)
@@ -76,8 +85,9 @@ def api_status():
 
 def _status():
     hp = main.get_current_hp()
-    inventory = main.load_inventory()
-    return {'hp': {'current': hp, 'max': 10}, 'inventory': inventory}
+    with history_lock:
+        inv = list(current_inventory)
+    return {'hp': {'current': hp, 'max': 10}, 'inventory': inv}
 
 @app.route('/')
 def index():
