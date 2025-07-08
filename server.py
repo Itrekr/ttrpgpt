@@ -23,7 +23,7 @@ def start_game():
     # send the up–to–date list via stdout
     current_inventory = []
     game_proc = subprocess.Popen(
-        ['python', 'main.py'],
+        ['python', '-u', 'main.py'],
         stdin=subprocess.PIPE,
         stdout=subprocess.PIPE,
         stderr=subprocess.STDOUT,
@@ -35,8 +35,8 @@ def start_game():
 def _reader():
     global current_inventory
     for line in game_proc.stdout:
-        if line.startswith(main.INVENTORY_PREFIX):
-            data = line[len(main.INVENTORY_PREFIX):].strip()
+        if main.INVENTORY_PREFIX in line:
+            data = line.split(main.INVENTORY_PREFIX,1)[1].strip()
             items = data.split('|') if data else []
             with history_lock:
                 current_inventory = [i.strip() for i in items if i.strip()]
