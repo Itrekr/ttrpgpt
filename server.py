@@ -19,7 +19,9 @@ def start_game():
     global game_proc, current_inventory
     if game_proc is not None:
         return
-    current_inventory = main.load_inventory()
+    # Start with an empty inventory and let the game process
+    # send the up–to–date list via stdout
+    current_inventory = []
     game_proc = subprocess.Popen(
         ['python', 'main.py'],
         stdin=subprocess.PIPE,
