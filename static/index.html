@@ -17,7 +17,7 @@ body {
     margin: 0;
     display: flex;
     height: 100vh;
-    font-size: 20px;
+    font-size: 2.5vh;
 }
 #inventory {
     width: 250px;
@@ -57,6 +57,14 @@ body {
     color: red;
     margin-right: 2px;
     font-size: 1.2em;
+    font-family: monospace;
+    display: inline-block;
+    width: 1ch;
+    text-align: center;
+}
+
+.modifier {
+    font-family: monospace;
 }
 </style>
 </head>
@@ -95,7 +103,11 @@ function refreshStatus(){
         }
         if(Array.isArray(d.inventory)){
             invList.innerHTML='';
-            d.inventory.forEach(it=>{const li=document.createElement('li');li.textContent=it;invList.appendChild(li);});
+            d.inventory.forEach(it=>{
+                const li=document.createElement('li');
+                li.innerHTML = it.replace(/\[(.*?)\]/g, '<span class="modifier">[$1]</span>');
+                invList.appendChild(li);
+            });
         }
     });
 }
@@ -108,7 +120,7 @@ fetch('/api/history').then(r=>r.json()).then(d=>{
 });
 
 setInterval(()=>{
-    fetch('/api/poll').then(r=>r.json()).then(d=>append(d.output));
+    fetch('/api/poll').then(r=>r.json()).then(d=>{append(d.output);refreshStatus();});
 },1000);
 promptInput.addEventListener('keydown',function(e){
     if(e.key==='Enter'){

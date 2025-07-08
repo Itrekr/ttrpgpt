@@ -37,7 +37,7 @@ def _reader():
             data = line[len(main.INVENTORY_PREFIX):].strip()
             items = data.split('|') if data else []
             with history_lock:
-                current_inventory = [i for i in items if i]
+                current_inventory = [i.strip() for i in items if i.strip()]
             continue
         output_queue.put(line)
         with history_lock:
