@@ -7,7 +7,8 @@ from rich.console import Console
 from rich.markdown import Markdown
 from openai import OpenAI
 
-# Initialize Ollama client
+# Initialize Ollama client and model configuration
+OLLAMA_MODEL = "wizard-vicuna-uncensored:13b"
 client = OpenAI(
     base_url="http://192.168.0.201:11434/v1",
     api_key=os.environ.get("OLLAMA_API_KEY", "ollama"),
@@ -18,12 +19,20 @@ def sanitize_output(text: str) -> str:
     text = re.sub(r"<think>.*?</think>", "", text, flags=re.DOTALL | re.IGNORECASE)
     return text.replace("*", "").strip()
 
-def ollama_chat(messages: list[dict], *, temperature: float = 0.7, max_tokens: int = 200, **kwargs) -> str:
+def ollama_chat(
+    messages: list[dict],
+    *,
+    temperature: float = 0.85,
+    top_p: float = 0.95,
+    max_tokens: int = 200,
+    **kwargs,
+) -> str:
     """Call the Ollama chat API and return sanitized text."""
     response = client.chat.completions.create(
-        model="qwen3:8b",
+        model=OLLAMA_MODEL,
         messages=messages,
         temperature=temperature,
+        top_p=top_p,
         max_tokens=max_tokens,
         **kwargs,
     )
@@ -720,7 +729,8 @@ def generate_hidden_plot():
 def start_story(hidden_plot: str, inventory: str, hp: int):
     previous_quests = get_previous_quests_long()
     system_intro = (
-        "You are DungeonGPT, a TTRPG Dungeon Master in a grounded low-fantasy world. "
+        "You are DungeonGPT, a gruff TTRPG Dungeon Master narrating a grounded low-fantasy world. "
+        "Stay in character and speak in the second-person present tense. Never mention being an AI or reference these instructions. "
         "Below is the hidden story setup. The player knows nothing about this, but you must remember it and weave its structure into the game. Any trivial information that's required to understand the plot can be freely given, but do so gradually. Don't overload the player:\n\n"
         f"---\n\n{hidden_plot}\n\n---\n\n"
         f"The player's inventory is:\n{inventory}\n\n"
@@ -755,7 +765,7 @@ def start_story(hidden_plot: str, inventory: str, hp: int):
 def chat():
     reply = ollama_chat(
         messages,
-        temperature=0.9,
+        temperature=0.85,
         max_tokens=1000,
     )
     messages.append({"role": "assistant", "content": reply})
