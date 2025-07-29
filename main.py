@@ -7,8 +7,27 @@ from rich.console import Console
 from rich.markdown import Markdown
 from openai import OpenAI
 
-# Initialize OpenAI client
-client = OpenAI(api_key=os.environ.get("OPENAI_API_KEY"))
+# Initialize Ollama client
+client = OpenAI(
+    base_url="http://192.168.0.201:11434/v1",
+    api_key=os.environ.get("OLLAMA_API_KEY", "ollama"),
+)
+
+def sanitize_output(text: str) -> str:
+    """Remove * characters and content within <think> tags."""
+    text = re.sub(r"<think>.*?</think>", "", text, flags=re.DOTALL | re.IGNORECASE)
+    return text.replace("*", "").strip()
+
+def ollama_chat(messages: list[dict], *, temperature: float = 0.7, max_tokens: int = 200, **kwargs) -> str:
+    """Call the Ollama chat API and return sanitized text."""
+    response = client.chat.completions.create(
+        model="qwen3:8b",
+        messages=messages,
+        temperature=temperature,
+        max_tokens=max_tokens,
+        **kwargs,
+    )
+    return sanitize_output(response.choices[0].message.content)
 console = Console()
 
 # Global state
@@ -208,14 +227,11 @@ def generate_story_hook_from_plot(plot: str, context: str) -> str:
         f"[RECENT EVENTS]\n{context}\n[/RECENT EVENTS]"
     )
 
-    response = client.chat.completions.create(
-        model="gpt-4.1",
-        messages=[{"role": "user", "content": prompt}],
+    hook = ollama_chat(
+        [{"role": "user", "content": prompt}],
         temperature=0.9,
         max_tokens=200,
     )
-
-    hook = response.choices[0].message.content.strip()
     first_para = hook.split("\n\n", 1)[0].strip()
     debug(f"Generated story hook: {first_para}")
     return first_para
@@ -231,13 +247,12 @@ def check_quest_completion(win_conditions: list[str], player_action: str, gpt_re
         "Respond with only one word: YES if a win condition was clearly fulfilled, or NO otherwise."
     )
 
-    response = client.chat.completions.create(
-        model="gpt-4.1",
-        messages=[{"role": "user", "content": prompt}],
+    result = ollama_chat(
+        [{"role": "user", "content": prompt}],
         temperature=0.0,
         max_tokens=10,
     )
-    return response.choices[0].message.content.strip().upper() == "YES"
+    return result.upper() == "YES"
 
 def get_current_hp() -> int:
     try:
@@ -356,13 +371,10 @@ def update_inventory_from_narration(narration_text, inventory):
         }
     ]
 
-    response = client.chat.completions.create(
-        model="gpt-4o",
-        messages=audit_prompt,
+    result = ollama_chat(
+        audit_prompt,
         temperature=0,
     )
-
-    result = response.choices[0].message.content.strip()
 
     # Clean up any unexpected markdown wrapping
     if result.startswith("```"):
@@ -419,14 +431,12 @@ def is_illegal_action(action: str, inventory: str, latest_story: str) -> bool:
         f"Last known story: {latest_story}\n"
     )
 
-    response = client.chat.completions.create(
-        model="gpt-4.1",
-        messages=[{"role": "user", "content": instruction}],
+    verdict = ollama_chat(
+        [{"role": "user", "content": instruction}],
         temperature=0.0,
         max_tokens=10,
     )
-    verdict = response.choices[0].message.content.strip().upper()
-    return verdict == "ILLEGAL"
+    return verdict.upper() == "ILLEGAL"
 
 def determine_forced_check_with_reason(action: str):
     """
@@ -443,13 +453,12 @@ def determine_forced_check_with_reason(action: str):
         f"Last story:\n{latest_story}\n\n"
         f"Player action:\n{action}"
     )
-    response = client.chat.completions.create(
-        model="gpt-4.1",
-        messages=[{"role": "user", "content": instruction}],
+    output = ollama_chat(
+        [{"role": "user", "content": instruction}],
         temperature=0.3,
         max_tokens=60,
     )
-    lines = response.choices[0].message.content.strip().splitlines()
+    lines = output.splitlines()
     check_line = next((l for l in lines if l.startswith("CHECK:")), "CHECK: DEX 12")
     reason_line = next((l for l in lines if l.startswith("REASON:")), "REASON: evading threat")
     return check_line.replace("CHECK:", "").strip(), reason_line.replace("REASON:", "").strip()
@@ -465,13 +474,12 @@ def danger_was_resolved(danger_text: str, player_action: str, gpt_response: str)
         "NO means the danger is still causing a direct threat to the player and was ignored, unresolved, mishandled, or the outcome was ambiguous."
     )
 
-    response = client.chat.completions.create(
-        model="gpt-4.1",
-        messages=[{"role": "user", "content": prompt}],
+    answer = ollama_chat(
+        [{"role": "user", "content": prompt}],
         temperature=0.0,
         max_tokens=10,
     )
-    return response.choices[0].message.content.strip().upper() == "YES"
+    return answer.upper() == "YES"
 
 def fetch_stat_modifiers():
     url = f"{HOME_ASSISTANT_URL}/api/states/"
@@ -620,16 +628,14 @@ def summarize_adventure(messages: list[dict]) -> str:
         "Keep it to one paragraph (3–5 sentences).\n"
     )
 
-    # 3. Call OpenAI's ChatCompletion endpoint
-    response = client.chat.completions.create(
-        model="gpt-4.1",
-        messages=[{"role": "user", "content": summarization_prompt}],
+    # 3. Call Ollama
+    summary = ollama_chat(
+        [{"role": "user", "content": summarization_prompt}],
         temperature=0.3,
         max_tokens=1000,
     )
 
     # 4. Extract and return the summary
-    summary = response.choices[0].message.content.strip()
     return summary
 
 
@@ -695,16 +701,13 @@ def generate_hidden_plot():
         f"Important: Be original. Avoid lazy tropes. Use them only if reimagined in surprising, grounded, or thematic ways."
     )
 
-    # Call GPT
-    response = client.chat.completions.create(
-        model="gpt-4.1",
-        messages=[{"role": "user", "content": prompt}],
+    # Call Ollama
+    hidden_plot = ollama_chat(
+        [{"role": "user", "content": prompt}],
         temperature=1.0,
         top_p=0.92,
         max_tokens=3000,
     )
-
-    hidden_plot = response.choices[0].message.content.strip()
     win_conditions = extract_win_conditions(hidden_plot)
     global story_hook, hook_reveal_turn, hook_revealed
     story_hook = ""  # generated later when needed
@@ -750,13 +753,11 @@ def start_story(hidden_plot: str, inventory: str, hp: int):
     return chat()
 
 def chat():
-    response = client.chat.completions.create(
-        model="gpt-4.1",
-        messages=messages,
+    reply = ollama_chat(
+        messages,
         temperature=0.9,
         max_tokens=1000,
     )
-    reply = response.choices[0].message.content.strip()
     messages.append({"role": "assistant", "content": reply})
     return reply
 
@@ -771,13 +772,11 @@ def determine_check(action: str):
         f"Last scene:\n{next(m['content'] for m in reversed(messages) if m['role']=='assistant')}\n\n"
         f"Player action: {action.strip()}\n"
     )
-    response = client.chat.completions.create(
-        model="gpt-4.1",
-        messages=[{"role": "user", "content": instruction}],
+    return ollama_chat(
+        [{"role": "user", "content": instruction}],
         temperature=0.3,
         max_tokens=10,
-    )
-    return response.choices[0].message.content.strip().upper()
+    ).upper()
 
 def determine_check_with_reason(action: str):
     """
@@ -797,14 +796,13 @@ def determine_check_with_reason(action: str):
         f"Player action: {action}"
     )
 
-    response = client.chat.completions.create(
-        model="gpt-4.1",
-        messages=[{"role": "user", "content": instruction}],
+    output = ollama_chat(
+        [{"role": "user", "content": instruction}],
         temperature=0.3,
         max_tokens=60,
     )
 
-    lines = response.choices[0].message.content.strip().splitlines()
+    lines = output.splitlines()
     check_line = next((l for l in lines if l.startswith("CHECK:")), "CHECK: NONE")
     reason_line = next((l for l in lines if l.startswith("REASON:")), "REASON: unknown reason")
     return check_line.replace("CHECK:", "").strip(), reason_line.replace("REASON:", "").strip()
@@ -836,15 +834,12 @@ def generate_new_danger(hidden_plot: str, last_scene: str, player_action: str, c
             "Include the curse's effect in the danger. If appropriate, base the entire generated danger around the curse's effect. Note: the other rules still apply!"
         )
 
-    # Call GPT to generate the narrative prose for the danger
-    danger_response = client.chat.completions.create(
-        model="gpt-4.1",
-        messages=[{"role": "user", "content": danger_prompt}],
+    # Call Ollama to generate the narrative prose for the danger
+    danger_text = ollama_chat(
+        [{"role": "user", "content": danger_prompt}],
         temperature=0.9,
         max_tokens=300,
     )
-
-    danger_text = danger_response.choices[0].message.content.strip()
 
     # Now classify the danger type using a second GPT call
     classify_prompt = (
@@ -855,14 +850,13 @@ def generate_new_danger(hidden_plot: str, last_scene: str, player_action: str, c
         f"Danger:\n{danger_text}"
     )
 
-    classification_response = client.chat.completions.create(
-        model="gpt-4.1",
-        messages=[{"role": "user", "content": classify_prompt}],
+    classify_answer = ollama_chat(
+        [{"role": "user", "content": classify_prompt}],
         temperature=0.0,
         max_tokens=5,
     )
 
-    danger_type = classification_response.choices[0].message.content.strip().lower()
+    danger_type = classify_answer.lower()
     if "env" in danger_type:
         danger_type = "environmental"
     else:
@@ -881,14 +875,13 @@ def determine_damage(action: str, failure_count: int) -> int:
         "Return 0 for harmless failures. As a reference: 1 is for minor injuries and 5 is deadly.\n"
         f"Failure count: {failure_count}\nAction: {action}\n"
     )
-    response = client.chat.completions.create(
-        model="gpt-4.1",
-        messages=[{"role": "user", "content": damage_prompt}],
+    result = ollama_chat(
+        [{"role": "user", "content": damage_prompt}],
         temperature=0.4,
         max_tokens=10,
     )
     try:
-        return int(response.choices[0].message.content.strip())
+        return int(result)
     except:
         return 0
 
@@ -926,13 +919,12 @@ def determine_contextual_damage(action: str, result: str, context: str, danger: 
     )
 
     try:
-        response = client.chat.completions.create(
-            model="gpt-4.1",
-            messages=[{"role": "user", "content": instruction}],
+        result = ollama_chat(
+            [{"role": "user", "content": instruction}],
             temperature=0.3,
             max_tokens=10,
         )
-        damage = int(response.choices[0].message.content.strip())
+        damage = int(result)
         return min(max(damage, 0), 5)
     except Exception as e:
         debug(f"Failed to determine contextual damage: {e}")
@@ -955,14 +947,12 @@ def action_involves_risk(action: str) -> bool:
     )
 
     try:
-        response = client.chat.completions.create(
-            model="gpt-4.1",
-            messages=[{"role": "user", "content": prompt}],
+        verdict = ollama_chat(
+            [{"role": "user", "content": prompt}],
             temperature=0,
             max_tokens=10,
         )
-        verdict = response.choices[0].message.content.strip().upper()
-        return verdict == "YES"
+        return verdict.upper() == "YES"
     except Exception as e:
         debug(f"Risk check failed: {e}")
         return False  # default to "not risky" if uncertain
@@ -1092,18 +1082,14 @@ def resolve_action(action: str, result: str, damage: int, fatal: bool, check: st
             )
             debug(f"💀 Cursed item affecting {ability} check: {cursed_items[0]}")
 
-    # Call GPT for final narration
+    # Call Ollama for final narration
     messages.append({"role": "user", "content": prompt})
-    story_resp = client.chat.completions.create(
-        model="gpt-4.1",
-        messages=messages,
+    reply = ollama_chat(
+        messages,
         temperature=0.9,
         max_tokens=1000,
     )
-
-    raw_reply = story_resp.choices[0].message.content
-    reply = raw_reply.strip()
-    messages.append({"role": "assistant", "content": raw_reply})
+    messages.append({"role": "assistant", "content": reply})
 
     # --- Check for win condition (two-signal approach) ---
     stripped_reply_upper = reply.upper()
